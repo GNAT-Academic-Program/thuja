@@ -25,7 +25,8 @@ package body Demo.Buttons is
       Button.Draw
         (Frame => Frame,
          Area  => Sections (1),
-         Text  => "Click Me");
+         Text  => "Click Me",
+	 S     => D.Click_Button);
 
       Labels.Draw
         (Frame => Frame,
@@ -40,11 +41,25 @@ package body Demo.Buttons is
       Used : out Boolean)
    is
    begin
+      Used := False;
+
+      -- Toggle button using D
+      if E.Kind = Text_Input and then E.Length > 0 then
+         if E.Text (1) = 'd' or else E.Text (1) = 'D' then
+            Button.Set_Enabled
+              (D.Click_Button,
+               not Button.Is_Enabled (D.Click_Button));
+
+            Used := True;
+            return;
+         end if;
+      end if;
+
+      -- Handle button activation
       Button.Handle (D.Click_Button, E, Used);
 
       if Button.Was_Clicked (D.Click_Button) then
          D.Click_Count := D.Click_Count + 1;
       end if;
    end Update;
-
 end Demo.Buttons;
