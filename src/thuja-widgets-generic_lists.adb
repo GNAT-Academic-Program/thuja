@@ -17,9 +17,6 @@ package body Thuja.Widgets.Generic_Lists is
    ------------
    -- Handle --
    ------------
-   ------------
-   -- Handle --
-   ------------
 
    procedure Handle (S : in out State; E : Event; Used : out Boolean) is
       Last : constant Natural := Count;

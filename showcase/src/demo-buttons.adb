@@ -46,9 +46,12 @@ package body Demo.Buttons is
       -- Toggle button using D
       if E.Kind = Text_Input and then E.Length > 0 then
          if E.Text (1) = 'd' or else E.Text (1) = 'D' then
-            Button.Set_Enabled
-              (D.Click_Button,
-               not Button.Is_Enabled (D.Click_Button));
+            D.Click_Button.Enabled := not D.Click_Button.Enabled;
+
+	 if not D.Click_Button.Enabled then
+  		 D.Click_Button.Activated := False;
+   		 D.Click_Button.Pressed := False;
+	 end if;
 
             Used := True;
             return;

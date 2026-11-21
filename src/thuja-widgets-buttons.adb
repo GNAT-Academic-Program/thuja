@@ -1,27 +1,8 @@
-
+with Thuja.Widgets.Blocks;
 with Thuja.Widgets.Labels;
+with Thuja.Styles; use Thuja.Styles;
 
 package body Thuja.Widgets.Buttons is
-
-   procedure Set_Enabled
-     (S : in out State;
-      Value : Boolean)
-   is
-   begin
-      S.Enabled := Value;
-
-      if not Value then
-         S.Activated := False;
-         S.Pressed := False;
-      end if;
-   end Set_Enabled;
-
-   function Is_Enabled
-     (S : State) return Boolean
-   is
-   begin
-      return S.Enabled;
-   end Is_Enabled;
 
    procedure Handle
      (S    : in out State;
@@ -32,6 +13,8 @@ package body Thuja.Widgets.Buttons is
       Used := False;
 
       if not S.Enabled then
+         S.Activated := False;
+         S.Pressed := False;
          return;
       end if;
 
@@ -50,7 +33,7 @@ package body Thuja.Widgets.Buttons is
    function Was_Clicked
      (S : in out State) return Boolean
    is
-      Result : constant Boolean := S.Activated;
+      Result : constant Boolean := S.Enabled and S.Activated;
    begin
       S.Activated := False;
       return Result;
@@ -62,20 +45,27 @@ package body Thuja.Widgets.Buttons is
       Text  : String;
       S     : in out State)
    is
-      Display_Text : constant String :=
-        (if not S.Enabled then "( " & Text & " )"
-         elsif S.Pressed then "< " & Text & " >"
-         else "[ " & Text & " ]");
+      Border_Style : constant Style :=
+        (if not S.Enabled then Dim (Plain)
+         elsif S.Pressed then Bold (Plain)
+         else Plain);
    begin
-      if Is_Empty (Area) then
+      if Area.Extent.Width < 2 or else Area.Extent.Height < 2 then
          return;
       end if;
 
-      Thuja.Widgets.Labels.Draw
+      Thuja.Widgets.Blocks.Draw
         (Frame => Frame,
          Area  => Area,
-         Text  => Display_Text,
+         S     => Border_Style);
+
+      Thuja.Widgets.Labels.Draw
+        (Frame => Frame,
+         Area  => Thuja.Widgets.Blocks.Inner (Area),
+         Text  => Text,
+         S     => Border_Style,
          Align => Thuja.Widgets.Labels.Center);
+
       S.Pressed := False;
    end Draw;
 

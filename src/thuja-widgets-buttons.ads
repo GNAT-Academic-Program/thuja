@@ -9,13 +9,6 @@ package Thuja.Widgets.Buttons is
       Pressed   : Boolean := False;
    end record;
 
-   procedure Set_Enabled
-     (S : in out State;
-      Value : Boolean);
-
-   function Is_Enabled
-     (S : State) return Boolean;
-
    procedure Handle
      (S    : in out State;
       E    : Event;
