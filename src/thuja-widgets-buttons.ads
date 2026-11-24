@@ -15,7 +15,7 @@ package Thuja.Widgets.Buttons is
       Used : out Boolean);
 
    function Was_Clicked
-     (S : in out State) return Boolean;
+     (S : State) return Boolean;
 
    procedure Draw
      (Frame : in out Buffer;

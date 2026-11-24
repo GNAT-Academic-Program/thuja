@@ -177,6 +177,11 @@ procedure Tests is
       Clear (B);
       Check ("Clear",                 Row (B, 0) = "        ");
 
+      Put (B, 0, 0, "caf" & Thuja.UTF8.Encode(Wide_Wide_Character'Val (16#E9#)),
+           Plain, Clip => Area (B));
+      Check ("Put decodes UTF-8",
+             Row_Image (B, 0) = "caf" & Wide_Wide_Character'Val (16#E9#) & "    ");
+
       Check ("UTF-8, 1 byte",         Thuja.UTF8.Encode ('A') = "A");
       Check ("UTF-8, 2 bytes",
              Thuja.UTF8.Encode (Wide_Wide_Character'Val (16#E9#))
@@ -275,9 +280,14 @@ procedure Tests is
 
    procedure Test_Renderer is
       Reset  : constant String := ESC & "[0m";
+      Erase  : constant String := ESC & "[2J";
+      Red    : constant Style  := Colored ((255, 0, 0, 255));
+      Blue   : constant Style  := Colored ((0, 0, 255, 255));
       Before : Buffer (10, 3);
       After  : Buffer (10, 3);
       Typed  : Buffer (10, 3);
+      Gaps   : Buffer (10, 3);
+      Styles : Buffer (10, 3);
    begin
       Sent := Null_Unbounded_String;
       Renderer.Diff (Before, After);
@@ -304,13 +314,42 @@ procedure Tests is
       Sent := Null_Unbounded_String;
       Renderer.Full (Before);
       Check ("full frame of a blank buffer: clear only",
-             To_String (Sent) = Reset & ESC & "[2J" & Reset);
+             To_String (Sent) = Reset & Erase & Reset);
 
       Put (Typed, 0, 0, "hello", Plain, Clip => Area (Typed));
       Sent := Null_Unbounded_String;
       Renderer.Diff (Before, Typed);
-      Put_Line ("      (five adjacent characters cost" & Length (Sent)'Image & " bytes)");
-      Todo ("five adjacent characters cost under 20 bytes", Length (Sent) < 20);
+      Put_Line
+        ("      (five adjacent characters cost"
+         & Length (Sent)'Image & " bytes)");
+      Check ("five adjacent characters cost under 20 bytes",
+             Length (Sent) < 20);
+      Check ("adjacent characters skip redundant Move_To and Style",
+             To_String (Sent) = ESC & "[1;1H" & Reset & "hello" & Reset);
+
+      --  Non-adjacent cells on same row and next row must emit Move_To
+      Set (Gaps, 0, 0, ('A', Plain));
+      Set (Gaps, 3, 0, ('B', Plain));
+      Set (Gaps, 0, 1, ('C', Plain));
+      Sent := Null_Unbounded_String;
+      Renderer.Diff (Before, Gaps);
+      Check ("non-adjacent cells emit Move_To on gaps and row wraps",
+             To_String (Sent) = ESC & "[1;1H" & Reset & "A" & ESC & "[1;4H" & "B" & ESC & "[2;1H" & "C" & Reset);
+
+      --  Style caching: Red -> Red skips style, Red -> Blue emits new style
+      Set (Styles, 0, 0, ('A', Red));
+      Set (Styles, 1, 0, ('B', Red));
+      Set (Styles, 2, 0, ('C', Blue));
+      Sent := Null_Unbounded_String;
+      Renderer.Diff (Before, Styles);
+      Check ("identical adjacent styles are cached, changes emit SGR",
+             To_String (Sent) = ESC & "[1;1H" & ESC & "[0;38;2;255;0;0m" & "AB" & ESC & "[0;38;2;0;0;255m" & "C" & Reset);
+
+      --  Full render uses the same Render_Cell state tracking
+      Sent := Null_Unbounded_String;
+      Renderer.Full (Typed);
+      Check ("full frame caches cursor and style across adjacent cells",
+             To_String (Sent) = Reset & Erase & ESC & "[1;1H" & Reset & "hello" & Reset);
    end Test_Renderer;
 
    ---------------------------------------------------------------------
@@ -462,19 +501,19 @@ begin
    S.Cursor := 3;
    Clear (B);
    -- Create a row of area that is 4 letters long
-   Text_Field.Draw (B, Make (0, 0, 6, 3), S, "A");
+   Text_Field.Draw (B, Make (0, 0, 6, 1), S, True);
 
    -- Check to make sure it only shows 4 letters
    Check ("Confirm rendering works with no scrolling",
-         Row (B, 1) (2 .. 5) = "ABCD");
+         Row (B, 0) (2 .. 5) = "ABCD");
 
    --  Scroll three characters to the right
    S.Cursor := 6;
    Clear (B);
-   Text_Field.Draw (B, Make (0, 0, 6, 3), S, "A");
+   Text_Field.Draw (B, Make (0, 0, 6, 1), S, True);
 
    Check ("Confirm scroll works with cursor at point 3 in a 4 width container",
-         Row (B, 1) (2 .. 5) = "DEFG");
+         Row (B, 0) (2 .. 5) = "DEFG");
 
    declare
       Long_Text : constant String := "ABC DEF GHI JHK LMN OPQ RST UV";
@@ -482,20 +521,20 @@ begin
       Text_Field.Set_Text (S, Long_Text);
       S.Cursor := 0;
       
-      Text_Field.Draw (B, Make (0, 0, 10, 3), S, "A");
+      Text_Field.Draw (B, Make (0, 0, 10, 1), S, True);
 
       Check ("Confirm long text with cursor at start works",
-         Row (B, 1) (2 .. 9) = "ABC DEF ");
+         Row (B, 0) (2 .. 9) = "ABC DEF ");
 
       for i in 1 .. 3 loop
          Text_Field.Handle (S, Key_Event (Key_Right, Down => True, 
                Mods => (Ctrl => True, others => False)), Used);
       end loop;
 
-      Text_Field.Draw (B, Make (0, 0, 10, 3), S, "A");
+      Text_Field.Draw (B, Make (0, 0, 10, 3), S, True);
 
       Check ("Confirm Ctrl right hit 3 times moves the scroll the correct amount",
-         Row (B, 1) (2 .. 9) = "DEF GHI ");
+         Row (B, 0) (2 .. 9) = "DEF GHI ");
    end;
    --  Text field horizontal scrolling tests
 

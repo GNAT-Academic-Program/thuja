@@ -31,12 +31,10 @@ package body Thuja.Widgets.Buttons is
    end Handle;
 
    function Was_Clicked
-     (S : in out State) return Boolean
+     (S : State) return Boolean
    is
-      Result : constant Boolean := S.Enabled and S.Activated;
    begin
-      S.Activated := False;
-      return Result;
+      return S.Enabled and S.Activated;
    end Was_Clicked;
 
    procedure Draw

@@ -63,6 +63,7 @@ package body Demo.Buttons is
 
       if Button.Was_Clicked (D.Click_Button) then
          D.Click_Count := D.Click_Count + 1;
+	 D.Click_Button.Activated := False;
       end if;
    end Update;
 end Demo.Buttons;
