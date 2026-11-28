@@ -1,3 +1,5 @@
+with Thuja.UTF8;
+
 package body Thuja.Buffers with SPARK_Mode is
 
    -----------
@@ -11,6 +13,9 @@ package body Thuja.Buffers with SPARK_Mode is
             B.Cells (Y, X) := Blank;
          end loop;
       end loop;
+
+      --  Clear cursor data
+      B.Cursor_Request := (others => <>);
    end Clear;
 
    ---------
@@ -53,6 +58,9 @@ package body Thuja.Buffers with SPARK_Mode is
             Target.Cells (Y, X) := Source.Cells (Y, X);
          end loop;
       end loop;
+
+      --  Copy cursor data
+      Target.Cursor_Request := Source.Cursor_Request;
    end Copy;
 
    ---------
@@ -66,13 +74,24 @@ package body Thuja.Buffers with SPARK_Mode is
       S    : Style;
       Clip : Rect)
    is
-      Wide : Wide_Wide_String (Text'Range);
+      Wide : Wide_Wide_String (1 .. Text'Length) := [others => ' '];
+      Last : Natural := 0;
+      I    : Natural := 0;
    begin
-      for I in Text'Range loop
-         Wide (I) := Wide_Wide_Character'Val (Character'Pos (Text (I)));
+      while I < Text'Length loop
+         pragma Loop_Invariant (Last <= I);
+         declare
+            First : constant Positive := Text'First;
+            N     : constant Positive :=
+              Natural'Min (UTF8.Sequence_Length (Text (First + I)), Text'Length - I);
+         begin
+            Last := Last + 1;
+            Wide (Last) := UTF8.Decode (Text (First + I .. First + I + (N - 1)));
+            I := I + N;
+         end;
       end loop;
 
-      Put_Wide (B, X, Y, Wide, S, Clip);
+      Put_Wide (B, X, Y, Wide (1 .. Last), S, Clip);
    end Put;
 
    --------------
@@ -120,5 +139,30 @@ package body Thuja.Buffers with SPARK_Mode is
 
       return Result;
    end Row_Image;
+
+   ---------------
+   --   Cursor  --
+   ---------------
+
+   function Cursor (B : Buffer) return Cursor_Info is
+   begin
+      return B.Cursor_Request;
+   end Cursor;
+
+   procedure Set_Cursor
+      (B         : in out Buffer;
+      X, Y       : Pixels; --  x,y within the container
+      Container  : Rect) is   --  container for the cursor
+   begin
+      B.Cursor_Request.X := Container.Origin.X + X;
+      B.Cursor_Request.Y := Container.Origin.Y + Y;
+      B.Cursor_Request.Style := B.Cursor_Style_State;
+      B.Cursor_Request.Visible := True;
+   end Set_Cursor;
+
+   procedure Set_Cursor_Style (B : in out Buffer; Style : Cursor_Style) is
+   begin
+      B.Cursor_Style_State := Style;
+   end Set_Cursor_Style;
 
 end Thuja.Buffers;

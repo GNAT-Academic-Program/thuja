@@ -26,7 +26,9 @@ with Thuja.UTF8;
 with Thuja.Widgets.Blocks;
 with Thuja.Widgets.Gauges;
 with Thuja.Widgets.Generic_Lists;
+with Thuja.Widgets.Text_Fields;
 with Thuja.Widgets.Labels;
+with Thuja.Widgets.Buttons;
 
 procedure Tests is
 
@@ -176,6 +178,11 @@ procedure Tests is
       Clear (B);
       Check ("Clear",                 Row (B, 0) = "        ");
 
+      Put (B, 0, 0, "caf" & Thuja.UTF8.Encode(Wide_Wide_Character'Val (16#E9#)),
+           Plain, Clip => Area (B));
+      Check ("Put decodes UTF-8",
+             Row_Image (B, 0) = "caf" & Wide_Wide_Character'Val (16#E9#) & "    ");
+
       Check ("UTF-8, 1 byte",         Thuja.UTF8.Encode ('A') = "A");
       Check ("UTF-8, 2 bytes",
              Thuja.UTF8.Encode (Wide_Wide_Character'Val (16#E9#))
@@ -253,14 +260,14 @@ procedure Tests is
       Check ("endless sequence is abandoned",
              Endless'Length > 0 and then Endless'Length <= 500);
 
-      Todo ("UTF-8 text: e acute is one Text_Input of 2 bytes",
+      Check ("UTF-8 text: e acute is one Text_Input of 2 bytes",
             Accent'Length = 1 and then Accent (1).Kind = Text_Input
             and then Accent (1).Length = 2);
       Todo ("Delete (CSI 3 ~)",
             Delete'Length = 1 and then Is_Key (Delete (1), Key_Delete));
       Todo ("Ctrl + Right (CSI 1;5 C)",
             Ctrl_Right'Length = 1 and then Is_Key (Ctrl_Right (1), Key_Right, Ctrl));
-      Todo ("F1 (SS3 P)",
+      Check ("F1 (SS3 P)",
             F1'Length = 1 and then Is_Key (F1 (1), Key_F1));
       Todo ("F5 (CSI 15 ~)",
             F5'Length = 1 and then Is_Key (F5 (1), Key_F5));
@@ -274,9 +281,14 @@ procedure Tests is
 
    procedure Test_Renderer is
       Reset  : constant String := ESC & "[0m";
+      Erase  : constant String := ESC & "[2J";
+      Red    : constant Style  := Colored ((255, 0, 0, 255));
+      Blue   : constant Style  := Colored ((0, 0, 255, 255));
       Before : Buffer (10, 3);
       After  : Buffer (10, 3);
       Typed  : Buffer (10, 3);
+      Gaps   : Buffer (10, 3);
+      Styles : Buffer (10, 3);
    begin
       Sent := Null_Unbounded_String;
       Renderer.Diff (Before, After);
@@ -303,13 +315,42 @@ procedure Tests is
       Sent := Null_Unbounded_String;
       Renderer.Full (Before);
       Check ("full frame of a blank buffer: clear only",
-             To_String (Sent) = Reset & ESC & "[2J" & Reset);
+             To_String (Sent) = Reset & Erase & Reset);
 
       Put (Typed, 0, 0, "hello", Plain, Clip => Area (Typed));
       Sent := Null_Unbounded_String;
       Renderer.Diff (Before, Typed);
-      Put_Line ("      (five adjacent characters cost" & Length (Sent)'Image & " bytes)");
-      Todo ("five adjacent characters cost under 20 bytes", Length (Sent) < 20);
+      Put_Line
+        ("      (five adjacent characters cost"
+         & Length (Sent)'Image & " bytes)");
+      Check ("five adjacent characters cost under 20 bytes",
+             Length (Sent) < 20);
+      Check ("adjacent characters skip redundant Move_To and Style",
+             To_String (Sent) = ESC & "[1;1H" & Reset & "hello" & Reset);
+
+      --  Non-adjacent cells on same row and next row must emit Move_To
+      Set (Gaps, 0, 0, ('A', Plain));
+      Set (Gaps, 3, 0, ('B', Plain));
+      Set (Gaps, 0, 1, ('C', Plain));
+      Sent := Null_Unbounded_String;
+      Renderer.Diff (Before, Gaps);
+      Check ("non-adjacent cells emit Move_To on gaps and row wraps",
+             To_String (Sent) = ESC & "[1;1H" & Reset & "A" & ESC & "[1;4H" & "B" & ESC & "[2;1H" & "C" & Reset);
+
+      --  Style caching: Red -> Red skips style, Red -> Blue emits new style
+      Set (Styles, 0, 0, ('A', Red));
+      Set (Styles, 1, 0, ('B', Red));
+      Set (Styles, 2, 0, ('C', Blue));
+      Sent := Null_Unbounded_String;
+      Renderer.Diff (Before, Styles);
+      Check ("identical adjacent styles are cached, changes emit SGR",
+             To_String (Sent) = ESC & "[1;1H" & ESC & "[0;38;2;255;0;0m" & "AB" & ESC & "[0;38;2;0;0;255m" & "C" & Reset);
+
+      --  Full render uses the same Render_Cell state tracking
+      Sent := Null_Unbounded_String;
+      Renderer.Full (Typed);
+      Check ("full frame caches cursor and style across adjacent cells",
+             To_String (Sent) = Reset & Erase & ESC & "[1;1H" & Reset & "hello" & Reset);
    end Test_Renderer;
 
    ---------------------------------------------------------------------
@@ -384,6 +425,152 @@ procedure Tests is
       Check ("list stops at the last row", List.Selected = 5);
    end Test_Widgets;
 
+---------------------------------------------------------------------
+--  Text Input Widget: Tests
+---------------------------------------------------------------------
+
+procedure Test_Text_Fields is
+   package Text_Field renames Thuja.Widgets.Text_Fields;
+   use Text_Field.Input_Strings;
+   S    : Text_Field.State;
+   Used : Boolean;
+   TestText : Bounded_String := To_Bounded_String ("ABCDEFG");
+   LetterD : constant Event_List := Decode ("D");
+   B     : Buffer (256, 5);
+begin
+   for E of Decode(To_String (TestText)) loop
+      Text_Field.Handle(S, E, Used);
+   end loop;
+
+   Check ("Confirm Typed text matches", S.Text = TestText);
+
+   TestText := To_Bounded_String ("ABC");
+
+   Text_Field.Set_Text(S, To_String (TestText));
+
+   Check ("Confirm Set Text worked", S.Text = TestText);
+
+   --  Move left twice
+   Text_Field.Handle(S, Key_Event (Key_Left, Down => True), Used);
+   Text_Field.Handle(S, Key_Event (Key_Left, Down => True), Used);
+
+   -- Type a letter D
+   Text_Field.Handle (S, LetterD (LetterD'First), Used);
+   -- Confirm it inserted it at the proper point
+   Check ("Confirm Moving and insert worked", S.Text = To_Bounded_String ("ADBC"));
+
+   -- Check making sure right does not crash the program
+   for E in 1 .. 100 loop
+      --  Move right
+      Text_Field.Handle(S, Key_Event (Key_Right, Down => True), Used);
+   end loop;
+
+   -- Type another Letter D
+   Text_Field.Handle (S, LetterD (LetterD'First), Used);
+   -- Confirm it inserted it at the proper point
+   Check ("Confirm Moving right and still adds it at the end", S.Text = To_Bounded_String ("ADBCD"));
+
+   --  Move left once
+   Text_Field.Handle(S, Key_Event (Key_Left, Down => True), Used);
+   --  Check making sure backspace removes everything but the remaining letter
+   for E in 1 .. 100 loop
+      --  Backspace
+      Text_Field.Handle(S, Key_Event (Key_Backspace, Down => True), Used);
+   end loop;
+
+   Check ("Confirm backspace is working", S.Text = "D");
+
+   --  Delete word before cursor
+   Text_Field.Set_Text (S, "One.  two   three");
+   -- Move to position 11
+   Text_Field.Handle (S, Key_Event (Key_Home, Down => True), Used);
+   for I in 1 .. 14 loop
+      Text_Field.Handle (S, Key_Event (Key_Right, Down => True), Used);
+   end loop;
+
+   Text_Field.Handle (S,
+      Key_Event (Key_W, Down => True,
+               Mods => (Ctrl => True, others => False)),
+      Used);
+
+   Check ("Delete previous word", S.Text = "One.  two   ree");
+
+   --  Text field horizontal scrolling tests
+   Text_Field.Set_Text (S, "ABCDEFG");
+
+   --  No scrolling
+   S.Cursor := 3;
+   Clear (B);
+   -- Create a row of area that is 4 letters long
+   Text_Field.Draw (B, Make (0, 0, 6, 1), S, True);
+
+   -- Check to make sure it only shows 4 letters
+   Check ("Confirm rendering works with no scrolling",
+         Row (B, 0) (2 .. 5) = "ABCD");
+
+   --  Scroll three characters to the right
+   S.Cursor := 6;
+   Clear (B);
+   Text_Field.Draw (B, Make (0, 0, 6, 1), S, True);
+
+   Check ("Confirm scroll works with cursor at point 3 in a 4 width container",
+         Row (B, 0) (2 .. 5) = "DEFG");
+
+   declare
+      Long_Text : constant String := "ABC DEF GHI JHK LMN OPQ RST UV";
+   begin
+      Text_Field.Set_Text (S, Long_Text);
+      S.Cursor := 0;
+      
+      Text_Field.Draw (B, Make (0, 0, 10, 1), S, True);
+
+      Check ("Confirm long text with cursor at start works",
+         Row (B, 0) (2 .. 9) = "ABC DEF ");
+
+      for i in 1 .. 3 loop
+         Text_Field.Handle (S, Key_Event (Key_Right, Down => True, 
+               Mods => (Ctrl => True, others => False)), Used);
+      end loop;
+
+      Text_Field.Draw (B, Make (0, 0, 10, 3), S, True);
+
+      Check ("Confirm Ctrl right hit 3 times moves the scroll the correct amount",
+         Row (B, 0) (2 .. 9) = "DEF GHI ");
+   end;
+   --  Text field horizontal scrolling tests
+
+   
+
+end Test_Text_Fields;
+
+---------------------------------------------------------------------
+--  Button Widget: Tests
+---------------------------------------------------------------------
+
+   procedure Test_Buttons is
+      package Button renames Thuja.Widgets.Buttons;
+
+      S           : Button.State;
+      B           : Buffer (10, 3);
+      Used        : Boolean;
+      Was_Clicked : Boolean;
+   begin
+      Button.Handle
+        (S, Key_Event (Key_Return, Down => True),
+         Used, Was_Clicked);
+
+      Check ("button, Enter activates",
+             Used and then Was_Clicked);
+
+      Button.Draw (B, Area (B), "OK", S);
+
+      Check ("button, rendering",
+             Row (B, 0) = "+--------+"
+             and then Row (B, 1) = "|   OK   |"
+             and then Row (B, 2) = "+--------+");
+
+   end Test_Buttons;
+
 begin
    Test_Geometry;
    Test_Buffers;
@@ -391,6 +578,8 @@ begin
    Test_Input;
    Test_Renderer;
    Test_Widgets;
+   Test_Text_Fields;
+   Test_Buttons;
 
    New_Line;
    Put_Line (Failures'Image & " failed," & Pending'Image & " still to do");
@@ -399,3 +588,5 @@ begin
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    end if;
 end Tests;
+
+
