@@ -5,21 +5,22 @@ with Thuja.Styles; use Thuja.Styles;
 package body Thuja.Widgets.Buttons is
 
    procedure Handle
-     (S    : in out State;
-      E    : Event;
-      Used : out Boolean)
+     (S           : in out State;
+      E           : Event;
+      Used        : out Boolean;
+      Was_Clicked : out Boolean)
    is
    begin
       Used := False;
+      Was_Clicked := False;
 
       if not S.Enabled then
-         S.Activated := False;
          S.Pressed := False;
          return;
       end if;
 
       if E.Kind = Key_Down and then E.Key = Key_Return then
-         S.Activated := True;
+         Was_Clicked := True;
          S.Pressed := True;
          Used := True;
       elsif E.Kind = Key_Up and then E.Key = Key_Return then
@@ -29,13 +30,6 @@ package body Thuja.Widgets.Buttons is
          S.Pressed := False;
       end if;
    end Handle;
-
-   function Was_Clicked
-     (S : State) return Boolean
-   is
-   begin
-      return S.Enabled and S.Activated;
-   end Was_Clicked;
 
    procedure Draw
      (Frame : in out Buffer;

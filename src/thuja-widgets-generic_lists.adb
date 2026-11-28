@@ -1,19 +1,4 @@
 package body Thuja.Widgets.Generic_Lists is
-
-   function Get_Selected (S : State) return Positive is
-   begin
-      return S.Selected;
-   end Get_Selected;
-
-   procedure Set_Selected
-     (S     : in out State;
-      Index : Positive)
-   is
-   begin
-      S.Selected := Positive'Min
-        (Index, Positive'Max (1, Count));
-   end Set_Selected;
-
    ------------
    -- Handle --
    ------------

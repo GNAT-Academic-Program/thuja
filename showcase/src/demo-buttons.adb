@@ -40,16 +40,14 @@ package body Demo.Buttons is
       E    : Event;
       Used : out Boolean)
    is
+      Was_Clicked : Boolean;
    begin
-      Used := False;
-
       -- Toggle button using D
       if E.Kind = Text_Input and then E.Length > 0 then
          if E.Text (1) = 'd' or else E.Text (1) = 'D' then
             D.Click_Button.Enabled := not D.Click_Button.Enabled;
 
 	 if not D.Click_Button.Enabled then
-  		 D.Click_Button.Activated := False;
    		 D.Click_Button.Pressed := False;
 	 end if;
 
@@ -59,11 +57,14 @@ package body Demo.Buttons is
       end if;
 
       -- Handle button activation
-      Button.Handle (D.Click_Button, E, Used);
+      Button.Handle 
+         (S           => D.Click_Button,
+          E           => E,
+          Used        => Used,
+          Was_Clicked => Was_Clicked);
 
-      if Button.Was_Clicked (D.Click_Button) then
+      if Was_Clicked  then
          D.Click_Count := D.Click_Count + 1;
-	 D.Click_Button.Activated := False;
       end if;
    end Update;
 end Demo.Buttons;

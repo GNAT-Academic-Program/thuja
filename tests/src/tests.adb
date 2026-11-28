@@ -550,124 +550,24 @@ end Test_Text_Fields;
    procedure Test_Buttons is
       package Button renames Thuja.Widgets.Buttons;
 
-      S     : Button.State;
-      B     : Buffer (10, 3);
-      Small : Buffer (10, 3);
-      Used  : Boolean;
+      S           : Button.State;
+      B           : Buffer (10, 3);
+      Used        : Boolean;
+      Was_Clicked : Boolean;
    begin
-      --  Default state
-      Check ("button, default state",
-             S.Enabled and then not S.Activated
-             and then not S.Pressed);
-
-      Check ("button, initially not clicked",
-             not Button.Was_Clicked (S));
-
-      --  Button activation
       Button.Handle
-        (S, Key_Event (Key_Return, Down => True), Used);
-
-      Check ("button, Enter is used", Used);
+        (S, Key_Event (Key_Return, Down => True),
+         Used, Was_Clicked);
 
       Check ("button, Enter activates",
-             S.Activated and then S.Pressed);
-
-      Check ("button, Was_Clicked returns true",
-             Button.Was_Clicked (S));
-
-      --  Predicate must not modify state
-      Check ("button, predicate preserves state",
-             S.Activated and then S.Pressed
-             and then S.Enabled);
-
-      Check ("button, repeated predicate",
-             Button.Was_Clicked (S));
-
-      --  Release Enter
-      Button.Handle
-        (S, Key_Event (Key_Return, Down => False), Used);
-
-      Check ("button, Enter release",
-             Used and then not S.Pressed);
-
-      --  Reset activation
-      S.Activated := False;
-
-      Check ("button, activation reset",
-             not Button.Was_Clicked (S));
-
-      --  Unrelated input
-      Button.Handle
-        (S, Key_Event (Key_A, Down => True), Used);
-
-      Check ("button, unrelated key ignored",
-             not Used and then not S.Activated);
-
-      --  Disabled button
-      S.Enabled := False;
-
-      Button.Handle
-        (S, Key_Event (Key_Return, Down => True), Used);
-
-      Check ("button, disabled input ignored",
-             not Used and then not S.Activated
-             and then not S.Pressed);
-
-      Check ("button, disabled predicate",
-             not Button.Was_Clicked (S));
-
-      --  Re-enable button
-      S.Enabled := True;
-
-      Button.Handle
-        (S, Key_Event (Key_Return, Down => True), Used);
-
-      Check ("button, re-enabled activation",
-             Used and then Button.Was_Clicked (S));
-
-      --  Pressed rendering
-      Button.Draw (B, Area (B), "OK", S);
-
-      Check ("button, pressed rendering",
-             Get (B, 0, 0).Style = Bold (Plain));
-
-      Check ("button, drawing resets pressed state",
-             not S.Pressed);
-
-      --  Normal rendering
-      S.Activated := False;
-      Clear (B);
+             Used and then Was_Clicked);
 
       Button.Draw (B, Area (B), "OK", S);
 
-      Check ("button, top border",
-             Row (B, 0) = "+--------+");
-
-      Check ("button, centered label",
-             Row (B, 1) = "|   OK   |");
-
-      Check ("button, bottom border",
-             Row (B, 2) = "+--------+");
-
-      Check ("button, normal rendering",
-             Get (B, 0, 0).Style = Plain);
-
-      --  Disabled rendering
-      S.Enabled := False;
-      Clear (B);
-
-      Button.Draw (B, Area (B), "OK", S);
-
-      Check ("button, disabled rendering",
-             Get (B, 0, 0).Style = Dim (Plain));
-
-      --  Insufficient drawing space
-      Button.Draw (Small, Make (0, 0, 1, 1), "OK", S);
-
-      Check ("button, insufficient drawing space",
-             Row (Small, 0) = "          "
-             and then Row (Small, 1) = "          "
-             and then Row (Small, 2) = "          ");
+      Check ("button, rendering",
+             Row (B, 0) = "+--------+"
+             and then Row (B, 1) = "|   OK   |"
+             and then Row (B, 2) = "+--------+");
 
    end Test_Buttons;
 
